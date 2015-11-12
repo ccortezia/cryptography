@@ -4,7 +4,6 @@
 
 from __future__ import absolute_import, division, print_function
 
-import datetime
 import os
 import subprocess
 import sys
@@ -15,7 +14,6 @@ import pretend
 import pytest
 
 from cryptography import utils
-from cryptography import x509
 from cryptography.exceptions import InternalError, _Reasons
 from cryptography.hazmat.backends.interfaces import RSABackend
 from cryptography.hazmat.backends.openssl.backend import (
@@ -124,6 +122,11 @@ class TestOpenSSL(object):
         with raises_unsupported_algorithm(_Reasons.UNSUPPORTED_CIPHER):
             cipher.encryptor()
 
+    def test_openssl_assert(self):
+        backend.openssl_assert(True)
+        with pytest.raises(InternalError):
+            backend.openssl_assert(False)
+
     def test_consume_errors(self):
         for i in range(10):
             backend._lib.ERR_put_error(backend._lib.ERR_LIB_EVP, 0, 0,
@@ -135,23 +138,6 @@ class TestOpenSSL(object):
 
         assert backend._lib.ERR_peek_error() == 0
         assert len(errors) == 10
-
-    def test_openssl_error_string(self):
-        backend._lib.ERR_put_error(
-            backend._lib.ERR_LIB_EVP,
-            backend._lib.EVP_F_EVP_DECRYPTFINAL_EX,
-            0,
-            b"test_openssl.py",
-            -1
-        )
-
-        errors = backend._consume_errors()
-        exc = backend._unknown_error(errors[0])
-
-        assert (
-            "digital envelope routines:"
-            "EVP_DecryptFinal_ex:digital envelope routines" in str(exc)
-        )
 
     def test_ssl_ciphers_registered(self):
         meth = backend._lib.TLSv1_method()
@@ -512,26 +498,7 @@ class TestOpenSSLSignX509Certificate(object):
         private_key = RSA_KEY_2048.private_key(backend)
 
         with pytest.raises(TypeError):
-            backend.sign_x509_certificate(object(), private_key, DummyHash())
-
-    def test_checks_for_unsupported_extensions(self):
-        private_key = RSA_KEY_2048.private_key(backend)
-        builder = x509.CertificateBuilder().subject_name(x509.Name([
-            x509.NameAttribute(x509.OID_COUNTRY_NAME, u'US'),
-        ])).public_key(
-            private_key.public_key()
-        ).serial_number(
-            777
-        ).not_valid_before(
-            datetime.datetime(1999, 1, 1)
-        ).not_valid_after(
-            datetime.datetime(2020, 1, 1)
-        ).add_extension(
-            x509.InhibitAnyPolicy(0), False
-        )
-
-        with pytest.raises(NotImplementedError):
-            builder.sign(private_key, hashes.SHA1(), backend)
+            backend.create_x509_certificate(object(), private_key, DummyHash())
 
 
 class TestOpenSSLSerialisationWithOpenSSL(object):
@@ -583,6 +550,12 @@ class TestOpenSSLEllipticCurve(object):
     def test_sn_to_elliptic_curve_not_supported(self):
         with raises_unsupported_algorithm(_Reasons.UNSUPPORTED_ELLIPTIC_CURVE):
             _sn_to_elliptic_curve(backend, b"fake")
+
+    def test_elliptic_curve_exchange_algorithm_supported(self, monkeypatch):
+        monkeypatch.setattr(backend, "_lib", DummyLibrary())
+        assert not backend.elliptic_curve_exchange_algorithm_supported(
+            ec.ECDH(), ec.SECP256R1()
+        )
 
 
 @pytest.mark.requires_backend_interface(interface=RSABackend)

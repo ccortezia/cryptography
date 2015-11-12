@@ -5,6 +5,21 @@ X.509 Reference
 
 .. testsetup::
 
+    pem_crl_data = b"""
+    -----BEGIN X509 CRL-----
+    MIIBtDCBnQIBAjANBgkqhkiG9w0BAQsFADAnMQswCQYDVQQGEwJVUzEYMBYGA1UE
+    AwwPY3J5cHRvZ3JhcGh5LmlvGA8yMDE1MDEwMTAwMDAwMFoYDzIwMTYwMTAxMDAw
+    MDAwWjA+MDwCAQAYDzIwMTUwMTAxMDAwMDAwWjAmMBgGA1UdGAQRGA8yMDE1MDEw
+    MTAwMDAwMFowCgYDVR0VBAMKAQEwDQYJKoZIhvcNAQELBQADggEBABRA4ww50Lz5
+    zk1j2+aluC4HPHqb7o06h4pTDcCGeXUKXIGeP5ntGGmIoxa26sNoLeOr8+5b43Gf
+    yWraHertllOwaOpNFEe+YZFaE9femtoDbf+GLMvRx/0wDfd3KxPoXnXKMXb2d1w4
+    RCLgmkYx6JyvS+5ciuLQVIKC+l7jwIUeZFLJMUJ8msM4pFYoGameeZmtjMbd/TNg
+    cVBfmZxNMHuLladJxvSo2esARo0TYPhYsgrREKoHwhpzSxdynjn4bOVkILfguwsN
+    qtEEMZFEv5Kb0GqRp2+Iagv2S6dg9JGvxVdsoGjaB6EbYSZ3Psx4aODasIn11uwo
+    X4B9vUQNXqc=
+    -----END X509 CRL-----
+    """.strip()
+
     pem_req_data = b"""
     -----BEGIN CERTIFICATE REQUEST-----
     MIIC0zCCAbsCAQAwWTELMAkGA1UEBhMCVVMxETAPBgNVBAgMCElsbGlub2lzMRAw
@@ -129,6 +144,51 @@ Loading Certificates
     >>> cert.serial
     2
 
+Loading Certificate Revocation Lists
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+.. function:: load_pem_x509_crl(data, backend)
+
+    .. versionadded:: 1.1
+
+    Deserialize a certificate revocation list (CRL) from PEM encoded data. PEM
+    requests are base64 decoded and have delimiters that look like
+    ``-----BEGIN X509 CRL-----``.
+
+    :param bytes data: The PEM encoded request data.
+
+    :param backend: A backend supporting the
+        :class:`~cryptography.hazmat.backends.interfaces.X509Backend`
+        interface.
+
+    :returns: An instance of
+        :class:`~cryptography.x509.CertificateRevocationList`.
+
+.. function:: load_der_x509_crl(data, backend)
+
+    .. versionadded:: 1.1
+
+    Deserialize a certificate revocation list (CRL) from DER encoded data. DER
+    is a binary format.
+
+    :param bytes data: The DER encoded request data.
+
+    :param backend: A backend supporting the
+        :class:`~cryptography.hazmat.backends.interfaces.X509Backend`
+        interface.
+
+    :returns: An instance of
+        :class:`~cryptography.x509.CertificateRevocationList`.
+
+.. doctest::
+
+    >>> from cryptography import x509
+    >>> from cryptography.hazmat.backends import default_backend
+    >>> from cryptography.hazmat.primitives import hashes
+    >>> crl = x509.load_pem_x509_crl(pem_crl_data, default_backend())
+    >>> isinstance(crl.signature_hash_algorithm, hashes.SHA256)
+    True
+
 Loading Certificate Signing Requests
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -226,12 +286,12 @@ X.509 Certificate Object
 
     .. method:: public_key()
 
-        :type:
+        The public key associated with the certificate.
+
+        :returns:
             :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey` or
             :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey` or
             :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicKey`
-
-        The public key associated with the certificate.
 
         .. doctest::
 
@@ -322,6 +382,26 @@ X.509 Certificate Object
             <Extension(oid=<ObjectIdentifier(oid=2.5.29.32, name=certificatePolicies)>, critical=False, value=<CertificatePolicies([<PolicyInformation(policy_identifier=<ObjectIdentifier(oid=2.16.840.1.101.3.2.1.48.1, name=Unknown OID)>, policy_qualifiers=None)>])>)>
             <Extension(oid=<ObjectIdentifier(oid=2.5.29.19, name=basicConstraints)>, critical=True, value=<BasicConstraints(ca=True, path_length=None)>)>
 
+    .. attribute:: signature
+
+        .. versionadded:: 1.2
+
+        :type: bytes
+
+        The bytes of the certificate's signature.
+
+    .. attribute:: tbs_certificate_bytes
+
+        .. versionadded:: 1.2
+
+        :type: bytes
+
+        The DER encoded bytes payload (as defined by :rfc:`5280`) that is hashed
+        and then signed by the private key of the certificate's issuer. This
+        data may be used to validate a signature, but use extreme caution as
+        certificate validation is a complex problem that involves much more
+        than just signature checks.
+
     .. method:: public_bytes(encoding)
 
         .. versionadded:: 1.0
@@ -340,6 +420,21 @@ X.509 CRL (Certificate Revocation List) Object
 
     .. versionadded:: 1.0
 
+    A CertificateRevocationList is an object representing a list of revoked
+    certificates. The object is iterable and will yield the RevokedCertificate
+    objects stored in this CRL.
+
+    .. doctest::
+
+            >>> len(crl)
+            1
+            >>> revoked_certificate = crl[0]
+            >>> type(revoked_certificate)
+            <class 'cryptography.hazmat.backends.openssl.x509._RevokedCertificate'>
+            >>> for r in crl:
+            ...     print(r.serial_number)
+            0
+
     .. method:: fingerprint(algorithm)
 
         :param algorithm: The
@@ -349,6 +444,12 @@ X.509 CRL (Certificate Revocation List) Object
         :return bytes: The fingerprint using the supplied hash algorithm, as
             bytes.
 
+        .. doctest::
+
+            >>> from cryptography.hazmat.primitives import hashes
+            >>> crl.fingerprint(hashes.SHA256())
+            'e\xcf.\xc4:\x83?1\xdc\xf3\xfc\x95\xd7\xb3\x87\xb3\x8e\xf8\xb93!\x87\x07\x9d\x1b\xb4!\xb9\xe4W\xf4\x1f'
+
     .. attribute:: signature_hash_algorithm
 
         :type: :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm`
@@ -357,11 +458,22 @@ X.509 CRL (Certificate Revocation List) Object
         :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm` which
         was used in signing this CRL.
 
+        .. doctest::
+
+            >>> from cryptography.hazmat.primitives import hashes
+            >>> isinstance(crl.signature_hash_algorithm, hashes.SHA256)
+            True
+
     .. attribute:: issuer
 
         :type: :class:`Name`
 
         The :class:`Name` of the issuer.
+
+        .. doctest::
+
+            >>> crl.issuer
+            <Name([<NameAttribute(oid=<ObjectIdentifier(oid=2.5.4.6, name=countryName)>, value=u'US')>, <NameAttribute(oid=<ObjectIdentifier(oid=2.5.4.3, name=commonName)>, value=u'cryptography.io')>])>
 
     .. attribute:: next_update
 
@@ -370,17 +482,21 @@ X.509 CRL (Certificate Revocation List) Object
         A naïve datetime representing when the next update to this CRL is
         expected.
 
+        .. doctest::
+
+            >>> crl.next_update
+            datetime.datetime(2016, 1, 1, 0, 0)
+
     .. attribute:: last_update
 
         :type: :class:`datetime.datetime`
 
         A naïve datetime representing when the this CRL was last updated.
 
-    .. attribute:: revoked_certificates
+        .. doctest::
 
-        :type: list of :class:`RevokedCertificate`
-
-        The revoked certificates listed in this CRL.
+            >>> crl.last_update
+            datetime.datetime(2015, 1, 1, 0, 0)
 
     .. attribute:: extensions
 
@@ -401,6 +517,7 @@ X.509 Certificate Builder
         >>> from cryptography.hazmat.backends import default_backend
         >>> from cryptography.hazmat.primitives import hashes
         >>> from cryptography.hazmat.primitives.asymmetric import rsa
+        >>> from cryptography.x509.oid import NameOID
         >>> import datetime
         >>> import uuid
         >>> one_day = datetime.timedelta(1, 0, 0)
@@ -416,10 +533,10 @@ X.509 Certificate Builder
         ... ).public_key()
         >>> builder = x509.CertificateBuilder()
         >>> builder = builder.subject_name(x509.Name([
-        ...     x509.NameAttribute(x509.OID_COMMON_NAME, u'cryptography.io'),
+        ...     x509.NameAttribute(NameOID.COMMON_NAME, u'cryptography.io'),
         ... ]))
         >>> builder = builder.issuer_name(x509.Name([
-        ...     x509.NameAttribute(x509.OID_COMMON_NAME, u'cryptography.io'),
+        ...     x509.NameAttribute(NameOID.COMMON_NAME, u'cryptography.io'),
         ... ]))
         >>> builder = builder.not_valid_before(datetime.datetime.today() - one_day)
         >>> builder = builder.not_valid_after(datetime.datetime(2018, 8, 2))
@@ -495,9 +612,8 @@ X.509 Certificate Builder
 
         Adds an X.509 extension to the certificate.
 
-        :param extension: The extension to add to the certificate. Can be one
-            of :class:`~cryptography.x509.BasicConstraints` or
-            :class:`~cryptography.x509.SubjectAlternativeName`.
+        :param extension: An extension conforming to the
+            :class:`~cryptography.x509.ExtensionType` interface.
 
         :param critical: Set to ``True`` if the extension must be understood and
              handled by whoever reads the certificate.
@@ -521,6 +637,8 @@ X.509 Certificate Builder
             :class:`~cryptography.hazmat.backends.interfaces.X509Backend`
             interface.
 
+        :returns: :class:`~cryptography.x509.Certificate`
+
 
 X.509 CSR (Certificate Signing Request) Object
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -531,12 +649,12 @@ X.509 CSR (Certificate Signing Request) Object
 
     .. method:: public_key()
 
-        :type:
+        The public key associated with the request.
+
+        :returns:
             :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey` or
             :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey` or
             :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicKey`
-
-        The public key associated with the request.
 
         .. doctest::
 
@@ -609,17 +727,34 @@ X.509 Revoked Certificate Object
 
         An integer representing the serial number of the revoked certificate.
 
+        .. doctest::
+
+            >>> revoked_certificate.serial_number
+            0
+
     .. attribute:: revocation_date
 
         :type: :class:`datetime.datetime`
 
         A naïve datetime representing the date this certificates was revoked.
 
+        .. doctest::
+
+            >>> revoked_certificate.revocation_date
+            datetime.datetime(2015, 1, 1, 0, 0)
+
     .. attribute:: extensions
 
         :type: :class:`Extensions`
 
         The extensions encoded in the revoked certificate.
+
+        .. doctest::
+
+            >>> for ext in revoked_certificate.extensions:
+            ...     print(ext)
+            <Extension(oid=<ObjectIdentifier(oid=2.5.29.24, name=invalidityDate)>, critical=False, value=2015-01-01 00:00:00)>
+            <Extension(oid=<ObjectIdentifier(oid=2.5.29.21, name=cRLReason)>, critical=False, value=ReasonFlags.key_compromise)>
 
 X.509 CSR (Certificate Signing Request) Builder Object
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -634,6 +769,7 @@ X.509 CSR (Certificate Signing Request) Builder Object
         >>> from cryptography.hazmat.backends import default_backend
         >>> from cryptography.hazmat.primitives import hashes
         >>> from cryptography.hazmat.primitives.asymmetric import rsa
+        >>> from cryptography.x509.oid import NameOID
         >>> private_key = rsa.generate_private_key(
         ...     public_exponent=65537,
         ...     key_size=2048,
@@ -641,7 +777,7 @@ X.509 CSR (Certificate Signing Request) Builder Object
         ... )
         >>> builder = x509.CertificateSigningRequestBuilder()
         >>> builder = builder.subject_name(x509.Name([
-        ...     x509.NameAttribute(x509.OID_COMMON_NAME, u'cryptography.io'),
+        ...     x509.NameAttribute(NameOID.COMMON_NAME, u'cryptography.io'),
         ... ]))
         >>> builder = builder.add_extension(
         ...     x509.BasicConstraints(ca=False, path_length=None), critical=True,
@@ -661,8 +797,8 @@ X.509 CSR (Certificate Signing Request) Builder Object
 
     .. method:: add_extension(extension, critical)
 
-        :param extension: The :class:`~cryptography.x509.Extension` to add to
-            the request.
+        :param extension: An extension conforming to the
+            :class:`~cryptography.x509.ExtensionType` interface.
         :param critical: Set to `True` if the extension must be understood and
              handled by whoever reads the certificate.
         :returns: A new
@@ -720,7 +856,7 @@ X.509 CSR (Certificate Signing Request) Builder Object
 
         .. doctest::
 
-            >>> cert.subject.get_attributes_for_oid(x509.OID_COMMON_NAME)
+            >>> cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)
             [<NameAttribute(oid=<ObjectIdentifier(oid=2.5.4.3, name=commonName)>, value=u'Good CA')>]
 
 .. class:: Version
@@ -780,7 +916,7 @@ General Name Classes
     This is the generic interface that all the following classes are registered
     against.
 
-.. class:: RFC822Name
+.. class:: RFC822Name(value)
 
     .. versionadded:: 0.9
 
@@ -790,7 +926,7 @@ General Name Classes
 
         :type: :term:`text`
 
-.. class:: DNSName
+.. class:: DNSName(value)
 
     .. versionadded:: 0.9
 
@@ -800,7 +936,7 @@ General Name Classes
 
         :type: :term:`text`
 
-.. class:: DirectoryName
+.. class:: DirectoryName(value)
 
     .. versionadded:: 0.9
 
@@ -810,7 +946,7 @@ General Name Classes
 
         :type: :class:`Name`
 
-.. class:: UniformResourceIdentifier
+.. class:: UniformResourceIdentifier(value)
 
     .. versionadded:: 0.9
 
@@ -826,7 +962,7 @@ General Name Classes
 
         :type: :term:`text`
 
-.. class:: IPAddress
+.. class:: IPAddress(value)
 
     .. versionadded:: 0.9
 
@@ -838,7 +974,7 @@ General Name Classes
             :class:`~ipaddress.IPv6Address`,  :class:`~ipaddress.IPv4Network`,
             or :class:`~ipaddress.IPv6Network`.
 
-.. class:: RegisteredID
+.. class:: RegisteredID(value)
 
     .. versionadded:: 0.9
 
@@ -848,7 +984,7 @@ General Name Classes
 
         :type: :class:`ObjectIdentifier`
 
-.. class:: OtherName
+.. class:: OtherName(type_id, value)
 
     .. versionadded:: 1.0
 
@@ -883,7 +1019,25 @@ X.509 Extensions
 
         .. doctest::
 
-            >>> cert.extensions.get_extension_for_oid(x509.OID_BASIC_CONSTRAINTS)
+            >>> from cryptography.x509.oid import ExtensionOID
+            >>> cert.extensions.get_extension_for_oid(ExtensionOID.BASIC_CONSTRAINTS)
+            <Extension(oid=<ObjectIdentifier(oid=2.5.29.19, name=basicConstraints)>, critical=True, value=<BasicConstraints(ca=True, path_length=None)>)>
+
+    .. method:: get_extension_for_class(extclass)
+
+        .. versionadded:: 1.1
+
+        :param extclass: An extension class.
+
+        :returns: An instance of the extension class.
+
+        :raises cryptography.x509.ExtensionNotFound: If the certificate does
+            not have the extension requested.
+
+        .. doctest::
+
+            >>> from cryptography import x509
+            >>> cert.extensions.get_extension_for_class(x509.BasicConstraints)
             <Extension(oid=<ObjectIdentifier(oid=2.5.29.19, name=basicConstraints)>, critical=True, value=<BasicConstraints(ca=True, path_length=None)>)>
 
 .. class:: Extension
@@ -894,7 +1048,7 @@ X.509 Extensions
 
         :type: :class:`ObjectIdentifier`
 
-        The :ref:`extension OID <extension_oids>`.
+        One of the :class:`~cryptography.x509.oid.ExtensionOID` OIDs.
 
     .. attribute:: critical
 
@@ -909,14 +1063,28 @@ X.509 Extensions
 
         Returns an instance of the extension type corresponding to the OID.
 
-.. class:: KeyUsage
+.. class:: ExtensionType
+
+    .. versionadded:: 1.0
+
+    This is the interface against which all the following extension types are
+    registered.
+
+.. class:: KeyUsage(digital_signature, content_commitment, key_encipherment, data_encipherment, key_agreement, key_cert_sign, crl_sign, encipher_only, decipher_only)
 
     .. versionadded:: 0.9
 
     The key usage extension defines the purpose of the key contained in the
     certificate.  The usage restriction might be employed when a key that could
-    be used for more than one operation is to be restricted. It corresponds to
-    :data:`OID_KEY_USAGE`.
+    be used for more than one operation is to be restricted.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.KEY_USAGE`.
 
     .. attribute:: digital_signature
 
@@ -1001,14 +1169,21 @@ X.509 Extensions
             is false.
 
 
-.. class:: BasicConstraints
+.. class:: BasicConstraints(ca, path_length)
 
     .. versionadded:: 0.9
 
     Basic constraints is an X.509 extension type that defines whether a given
     certificate is allowed to sign additional certificates and what path
-    length restrictions may exist. It corresponds to
-    :data:`OID_BASIC_CONSTRAINTS`.
+    length restrictions may exist.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.BASIC_CONSTRAINTS`.
 
     .. attribute:: ca
 
@@ -1029,16 +1204,29 @@ X.509 Extensions
         means the certificate can sign a subordinate CA, but the subordinate CA
         is not allowed to create subordinates with ``ca`` set to true.
 
-.. class:: ExtendedKeyUsage
+.. class:: ExtendedKeyUsage(usages)
 
     .. versionadded:: 0.9
 
     This extension indicates one or more purposes for which the certified
     public key may be used, in addition to or in place of the basic
     purposes indicated in the key usage extension. The object is
-    iterable to obtain the list of :ref:`extended key usage OIDs <eku_oids>`.
+    iterable to obtain the list of
+    :class:`~cryptography.x509.oid.ExtendedKeyUsageOID` OIDs present.
 
-.. class:: OCSPNoCheck
+    :param list usages: A list of
+        :class:`~cryptography.x509.oid.ExtendedKeyUsageOID` OIDs.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.EXTENDED_KEY_USAGE`.
+
+
+.. class:: OCSPNoCheck()
 
     .. versionadded:: 1.0
 
@@ -1051,7 +1239,15 @@ X.509 Extensions
     extension is only relevant when the certificate is an authorized OCSP
     responder.
 
-.. class:: NameConstraints
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.OCSP_NO_CHECK`.
+
+.. class:: NameConstraints(permitted_subtrees, excluded_subtrees)
 
     .. versionadded:: 1.0
 
@@ -1059,6 +1255,14 @@ X.509 Extensions
     defines a name space within which all subject names in certificates issued
     beneath the CA certificate must (or must not) be in. For specific details
     on the way this extension should be processed see :rfc:`5280`.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns :attr:`~cryptography.x509.oid.ExtensionOID.NAME_CONSTRAINTS`.
 
     .. attribute:: permitted_subtrees
 
@@ -1077,7 +1281,7 @@ X.509 Extensions
         ``permitted_subtrees``. At least one of ``permitted_subtrees`` and
         ``excluded_subtrees`` will be non-None.
 
-.. class:: AuthorityKeyIdentifier
+.. class:: AuthorityKeyIdentifier(key_identifier, authority_cert_issuer, authority_cert_serial_number)
 
     .. versionadded:: 0.9
 
@@ -1086,6 +1290,15 @@ X.509 Extensions
     This extension is typically used to assist in determining the appropriate
     certificate chain. For more information about generation and use of this
     extension see `RFC 5280 section 4.2.1.1`_.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.AUTHORITY_KEY_IDENTIFIER`.
 
     .. attribute:: key_identifier
 
@@ -1106,12 +1319,52 @@ X.509 Extensions
 
         The serial number of the issuer's issuer.
 
-.. class:: SubjectKeyIdentifier
+    .. classmethod:: from_issuer_public_key(public_key)
+
+        .. versionadded:: 1.0
+
+        Creates a new AuthorityKeyIdentifier instance using the public key
+        provided to generate the appropriate digest. This should be the
+        **issuer's public key**. The resulting object will contain
+        :attr:`~cryptography.x509.AuthorityKeyIdentifier.key_identifier`, but
+        :attr:`~cryptography.x509.AuthorityKeyIdentifier.authority_cert_issuer`
+        and
+        :attr:`~cryptography.x509.AuthorityKeyIdentifier.authority_cert_serial_number`
+        will be None.
+        The generated ``key_identifier`` is the SHA1 hash of the ``subjectPublicKey``
+        ASN.1 bit string. This is the first recommendation in :rfc:`5280`
+        section 4.2.1.2.
+
+        :param public_key: One of
+            :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey`
+            ,
+            :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey`
+            , or
+            :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicKey`.
+
+        .. doctest::
+
+            >>> from cryptography import x509
+            >>> from cryptography.hazmat.backends import default_backend
+            >>> issuer_cert = x509.load_pem_x509_certificate(pem_data, default_backend())
+            >>> x509.AuthorityKeyIdentifier.from_issuer_public_key(issuer_cert.public_key())
+            <AuthorityKeyIdentifier(key_identifier='X\x01\x84$\x1b\xbc+R\x94J=\xa5\x10r\x14Q\xf5\xaf:\xc9', authority_cert_issuer=None, authority_cert_serial_number=None)>
+
+.. class:: SubjectKeyIdentifier(digest)
 
     .. versionadded:: 0.9
 
     The subject key identifier extension provides a means of identifying
     certificates that contain a particular public key.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.SUBJECT_KEY_IDENTIFIER`.
 
     .. attribute:: digest
 
@@ -1119,7 +1372,32 @@ X.509 Extensions
 
         The binary value of the identifier.
 
-.. class:: SubjectAlternativeName
+    .. classmethod:: from_public_key(public_key)
+
+        .. versionadded:: 1.0
+
+        Creates a new SubjectKeyIdentifier instance using the public key
+        provided to generate the appropriate digest. This should be the public
+        key that is in the certificate. The generated digest is the SHA1 hash
+        of the ``subjectPublicKey`` ASN.1 bit string. This is the first
+        recommendation in :rfc:`5280` section 4.2.1.2.
+
+        :param public_key: One of
+            :class:`~cryptography.hazmat.primitives.asymmetric.rsa.RSAPublicKey`
+            ,
+            :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey`
+            , or
+            :class:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicKey`.
+
+        .. doctest::
+
+            >>> from cryptography import x509
+            >>> from cryptography.hazmat.backends import default_backend
+            >>> csr = x509.load_pem_x509_csr(pem_req_data, default_backend())
+            >>> x509.SubjectKeyIdentifier.from_public_key(csr.public_key())
+            <SubjectKeyIdentifier(digest='\xdb\xaa\xf0\x06\x11\xdbD\xfe\xbf\x93\x03\x8av\x88WP7\xa6\x91\xf7')>
+
+.. class:: SubjectAlternativeName(general_names)
 
     .. versionadded:: 0.9
 
@@ -1127,6 +1405,17 @@ X.509 Extensions
     :ref:`general name <general_name_classes>` instances that provide a set
     of identities for which the certificate is valid. The object is iterable to
     get every element.
+
+    :param list general_names: A list of :class:`GeneralName` instances.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.SUBJECT_ALTERNATIVE_NAME`.
 
     .. method:: get_values_for_type(type)
 
@@ -1143,13 +1432,13 @@ X.509 Extensions
             >>> from cryptography.hazmat.primitives import hashes
             >>> cert = x509.load_pem_x509_certificate(cryptography_cert_pem, default_backend())
             >>> # Get the subjectAltName extension from the certificate
-            >>> ext = cert.extensions.get_extension_for_oid(x509.OID_SUBJECT_ALTERNATIVE_NAME)
+            >>> ext = cert.extensions.get_extension_for_oid(ExtensionOID.SUBJECT_ALTERNATIVE_NAME)
             >>> # Get the dNSName entries from the SAN extension
             >>> ext.value.get_values_for_type(x509.DNSName)
             [u'www.cryptography.io', u'cryptography.io']
 
 
-.. class:: IssuerAlternativeName
+.. class:: IssuerAlternativeName(general_names)
 
     .. versionadded:: 1.0
 
@@ -1157,6 +1446,17 @@ X.509 Extensions
     :ref:`general name <general_name_classes>` instances that provide a set
     of identities for the certificate issuer. The object is iterable to
     get every element.
+
+    :param list general_names: A list of :class:`GeneralName` instances.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.ISSUER_ALTERNATIVE_NAME`.
 
     .. method:: get_values_for_type(type)
 
@@ -1166,7 +1466,7 @@ X.509 Extensions
         :returns: A list of values extracted from the matched general names.
 
 
-.. class:: AuthorityInformationAccess
+.. class:: AuthorityInformationAccess(descriptions)
 
     .. versionadded:: 0.9
 
@@ -1174,10 +1474,22 @@ X.509 Extensions
     information and services for the issuer of the certificate in which
     the extension appears. Information and services may include online
     validation services (such as OCSP) and issuer data. It is an iterable,
-    containing one or more :class:`AccessDescription` instances.
+    containing one or more :class:`~cryptography.x509.AccessDescription`
+    instances.
+
+    :param list descriptions: A list of :class:`AccessDescription` objects.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.AUTHORITY_INFORMATION_ACCESS`.
 
 
-.. class:: AccessDescription
+.. class:: AccessDescription(access_method, access_location)
 
     .. versionadded:: 0.9
 
@@ -1186,11 +1498,16 @@ X.509 Extensions
         :type: :class:`ObjectIdentifier`
 
         The access method defines what the ``access_location`` means. It must
-        be either :data:`OID_OCSP` or :data:`OID_CA_ISSUERS`. If it is
-        :data:`OID_OCSP` the access location will be where to obtain OCSP
-        information for the certificate. If it is :data:`OID_CA_ISSUERS` the
-        access location will provide additional information about the issuing
-        certificate.
+        be either
+        :attr:`~cryptography.x509.oid.AuthorityInformationAccessOID.OCSP` or
+        :attr:`~cryptography.x509.oid.AuthorityInformationAccessOID.CA_ISSUERS`.
+        If it is
+        :attr:`~cryptography.x509.oid.AuthorityInformationAccessOID.OCSP`
+        the access location will be where to obtain OCSP
+        information for the certificate. If it is
+        :attr:`~cryptography.x509.oid.AuthorityInformationAccessOID.CA_ISSUERS`
+        the access location will provide additional information about the
+        issuing certificate.
 
     .. attribute:: access_location
 
@@ -1198,7 +1515,7 @@ X.509 Extensions
 
         Where to access the information defined by the access method.
 
-.. class:: CRLDistributionPoints
+.. class:: CRLDistributionPoints(distribution_points)
 
     .. versionadded:: 0.9
 
@@ -1206,7 +1523,19 @@ X.509 Extensions
     obtained. It is an iterable, containing one or more
     :class:`DistributionPoint` instances.
 
-.. class:: DistributionPoint
+    :param list distribution_points: A list of :class:`DistributionPoint`
+        instances.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.CRL_DISTRIBUTION_POINTS`.
+
+.. class:: DistributionPoint(full_name, relative_name, reasons, crl_issuer)
 
     .. versionadded:: 0.9
 
@@ -1290,37 +1619,59 @@ X.509 Extensions
         removed from the CRL. This reason cannot be used as a reason flag
         in a :class:`DistributionPoint`.
 
-.. class:: InhibitAnyPolicy
+.. class:: InhibitAnyPolicy(skip_certs)
 
     .. versionadded:: 1.0
 
     The inhibit ``anyPolicy`` extension indicates that the special OID
-    :data:`OID_ANY_POLICY`, is not considered an explicit match for other
-    :class:`CertificatePolicies` except when it appears in an intermediate
-    self-issued CA certificate.  The value indicates the number of additional
-    non-self-issued certificates that may appear in the path before
-    :data:`OID_ANY_POLICY` is no longer permitted.  For example, a value
-    of one indicates that :data:`OID_ANY_POLICY` may be processed in
-    certificates issued by the subject of this certificate, but not in
-    additional certificates in the path.
+    :attr:`~cryptography.x509.oid.CertificatePoliciesOID.ANY_POLICY`, is not
+    considered an explicit match for other :class:`CertificatePolicies` except
+    when it appears in an intermediate self-issued CA certificate.  The value
+    indicates the number of additional non-self-issued certificates that may
+    appear in the path before
+    :attr:`~cryptography.x509.oid.CertificatePoliciesOID.ANY_POLICY` is no
+    longer permitted.  For example, a value of one indicates that
+    :attr:`~cryptography.x509.oid.CertificatePoliciesOID.ANY_POLICY` may be
+    processed in certificates issued by the subject of this certificate, but
+    not in additional certificates in the path.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.INHIBIT_ANY_POLICY`.
 
     .. attribute:: skip_certs
 
         :type: int
 
-.. class:: CertificatePolicies
+.. class:: CertificatePolicies(policies)
 
     .. versionadded:: 0.9
 
     The certificate policies extension is an iterable, containing one or more
     :class:`PolicyInformation` instances.
 
+    :param list policies: A list of :class:`PolicyInformation` instances.
+
+    .. attribute:: oid
+
+        .. versionadded:: 1.0
+
+        :type: :class:`ObjectIdentifier`
+
+        Returns
+        :attr:`~cryptography.x509.oid.ExtensionOID.CERTIFICATE_POLICIES`.
+
 Certificate Policies Classes
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 These classes may be present within a :class:`CertificatePolicies` instance.
 
-.. class:: PolicyInformation
+.. class:: PolicyInformation(policy_identifier, policy_qualifiers)
 
     .. versionadded:: 0.9
 
@@ -1340,7 +1691,7 @@ These classes may be present within a :class:`CertificatePolicies` instance.
         meant for display to the relying party when the certificate is
         used.
 
-.. class:: UserNotice
+.. class:: UserNotice(notice_reference, explicit_text)
 
     .. versionadded:: 0.9
 
@@ -1362,7 +1713,7 @@ These classes may be present within a :class:`CertificatePolicies` instance.
 
         :type: :term:`text`
 
-.. class:: NoticeReference
+.. class:: NoticeReference(organization, notice_numbers)
 
     Notice reference can name an organization and provide information about
     notices related to the certificate. For example, it might identify the
@@ -1389,292 +1740,303 @@ Object Identifiers
 X.509 elements are frequently identified by :class:`ObjectIdentifier`
 instances. The following common OIDs are available as constants.
 
-Name OIDs
-~~~~~~~~~
+.. currentmodule:: cryptography.x509.oid
 
-.. data:: OID_COMMON_NAME
+.. class:: NameOID
 
-    Corresponds to the dotted string ``"2.5.4.3"``. Historically the domain
-    name would be encoded here for server certificates. :rfc:`2818` deprecates
-    this practice and names of that type should now be located in a
-    SubjectAlternativeName extension. This OID is typically seen in X.509 names.
+    These OIDs are typically seen in X.509 names.
 
-.. data:: OID_COUNTRY_NAME
+    .. versionadded:: 1.0
 
-    Corresponds to the dotted string ``"2.5.4.6"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: COMMON_NAME
 
-.. data:: OID_LOCALITY_NAME
+        Corresponds to the dotted string ``"2.5.4.3"``. Historically the domain
+        name would be encoded here for server certificates. :rfc:`2818`
+        deprecates this practice and names of that type should now be located
+        in a :class:`~cryptography.x509.SubjectAlternativeName` extension.
 
-    Corresponds to the dotted string ``"2.5.4.7"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: COUNTRY_NAME
 
-.. data:: OID_STATE_OR_PROVINCE_NAME
+        Corresponds to the dotted string ``"2.5.4.6"``.
 
-    Corresponds to the dotted string ``"2.5.4.8"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: LOCALITY_NAME
 
-.. data:: OID_ORGANIZATION_NAME
+        Corresponds to the dotted string ``"2.5.4.7"``.
 
-    Corresponds to the dotted string ``"2.5.4.10"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: STATE_OR_PROVINCE_NAME
 
-.. data:: OID_ORGANIZATIONAL_UNIT_NAME
+        Corresponds to the dotted string ``"2.5.4.8"``.
 
-    Corresponds to the dotted string ``"2.5.4.11"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: ORGANIZATION_NAME
 
-.. data:: OID_SERIAL_NUMBER
+        Corresponds to the dotted string ``"2.5.4.10"``.
 
-    Corresponds to the dotted string ``"2.5.4.5"``. This is distinct from the
-    serial number of the certificate itself (which can be obtained with
-    :func:`Certificate.serial`). This OID is typically seen in X.509 names.
+    .. attribute:: ORGANIZATIONAL_UNIT_NAME
 
-.. data:: OID_SURNAME
+        Corresponds to the dotted string ``"2.5.4.11"``.
 
-    Corresponds to the dotted string ``"2.5.4.4"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: SERIAL_NUMBER
 
-.. data:: OID_GIVEN_NAME
+        Corresponds to the dotted string ``"2.5.4.5"``. This is distinct from
+        the serial number of the certificate itself (which can be obtained with
+        :func:`~cryptography.x509.Certificate.serial`).
 
-    Corresponds to the dotted string ``"2.5.4.42"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: SURNAME
 
-.. data:: OID_TITLE
+        Corresponds to the dotted string ``"2.5.4.4"``.
 
-    Corresponds to the dotted string ``"2.5.4.12"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: GIVEN_NAME
 
-.. data:: OID_GENERATION_QUALIFIER
+        Corresponds to the dotted string ``"2.5.4.42"``.
 
-    Corresponds to the dotted string ``"2.5.4.44"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: TITLE
 
-.. data:: OID_DN_QUALIFIER
+        Corresponds to the dotted string ``"2.5.4.12"``.
 
-    Corresponds to the dotted string ``"2.5.4.46"``. This specifies
-    disambiguating information to add to the relative distinguished name of an
-    entry. See :rfc:`2256`. This OID is typically seen in X.509 names.
+    .. attribute:: GENERATION_QUALIFIER
 
-.. data:: OID_PSEUDONYM
+        Corresponds to the dotted string ``"2.5.4.44"``.
 
-    Corresponds to the dotted string ``"2.5.4.65"``. This OID is typically seen
-    in X.509 names.
+    .. attribute:: DN_QUALIFIER
 
-.. data:: OID_DOMAIN_COMPONENT
+        Corresponds to the dotted string ``"2.5.4.46"``. This specifies
+        disambiguating information to add to the relative distinguished name of an
+        entry. See :rfc:`2256`.
 
-    Corresponds to the dotted string ``"0.9.2342.19200300.100.1.25"``. A string
-    holding one component of a domain name. See :rfc:`4519`. This OID is
-    typically seen in X.509 names.
+    .. attribute:: PSEUDONYM
 
-.. data:: OID_EMAIL_ADDRESS
+        Corresponds to the dotted string ``"2.5.4.65"``.
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.9.1"``. This OID is
-    typically seen in X.509 names.
+    .. attribute:: DOMAIN_COMPONENT
 
-Signature Algorithm OIDs
-~~~~~~~~~~~~~~~~~~~~~~~~
+        Corresponds to the dotted string ``"0.9.2342.19200300.100.1.25"``. A string
+        holding one component of a domain name. See :rfc:`4519`.
 
-.. data:: OID_RSA_WITH_MD5
+    .. attribute:: EMAIL_ADDRESS
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.4"``. This is
-    an MD5 digest signed by an RSA key.
+        Corresponds to the dotted string ``"1.2.840.113549.1.9.1"``.
 
-.. data:: OID_RSA_WITH_SHA1
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.5"``. This is
-    a SHA1 digest signed by an RSA key.
+.. class:: SignatureAlgorithmOID
 
-.. data:: OID_RSA_WITH_SHA224
+    .. versionadded:: 1.0
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.14"``. This is
-    a SHA224 digest signed by an RSA key.
+    .. attribute:: RSA_WITH_MD5
 
-.. data:: OID_RSA_WITH_SHA256
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.4"``. This is
+        an MD5 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.11"``. This is
-    a SHA256 digest signed by an RSA key.
+    .. attribute:: RSA_WITH_SHA1
 
-.. data:: OID_RSA_WITH_SHA384
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.5"``. This is
+        a SHA1 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.12"``. This is
-    a SHA384 digest signed by an RSA key.
+    .. attribute:: RSA_WITH_SHA224
 
-.. data:: OID_RSA_WITH_SHA512
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.14"``. This is
+        a SHA224 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.113549.1.1.13"``. This is
-    a SHA512 digest signed by an RSA key.
+    .. attribute:: RSA_WITH_SHA256
 
-.. data:: OID_ECDSA_WITH_SHA1
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.11"``. This is
+        a SHA256 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10045.4.1"``. This is a SHA1
-    digest signed by an ECDSA key.
+    .. attribute:: RSA_WITH_SHA384
 
-.. data:: OID_ECDSA_WITH_SHA224
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.12"``. This is
+        a SHA384 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10045.4.3.1"``. This is
-    a SHA224 digest signed by an ECDSA key.
+    .. attribute:: RSA_WITH_SHA512
 
-.. data:: OID_ECDSA_WITH_SHA256
+        Corresponds to the dotted string ``"1.2.840.113549.1.1.13"``. This is
+        a SHA512 digest signed by an RSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10045.4.3.2"``. This is
-    a SHA256 digest signed by an ECDSA key.
+    .. attribute:: ECDSA_WITH_SHA1
 
-.. data:: OID_ECDSA_WITH_SHA384
+        Corresponds to the dotted string ``"1.2.840.10045.4.1"``. This is a SHA1
+        digest signed by an ECDSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10045.4.3.3"``. This is
-    a SHA384 digest signed by an ECDSA key.
+    .. attribute:: ECDSA_WITH_SHA224
 
-.. data:: OID_ECDSA_WITH_SHA512
+        Corresponds to the dotted string ``"1.2.840.10045.4.3.1"``. This is
+        a SHA224 digest signed by an ECDSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10045.4.3.4"``. This is
-    a SHA512 digest signed by an ECDSA key.
+    .. attribute:: ECDSA_WITH_SHA256
 
-.. data:: OID_DSA_WITH_SHA1
+        Corresponds to the dotted string ``"1.2.840.10045.4.3.2"``. This is
+        a SHA256 digest signed by an ECDSA key.
 
-    Corresponds to the dotted string ``"1.2.840.10040.4.3"``. This is
-    a SHA1 digest signed by a DSA key.
+    .. attribute:: ECDSA_WITH_SHA384
 
-.. data:: OID_DSA_WITH_SHA224
+        Corresponds to the dotted string ``"1.2.840.10045.4.3.3"``. This is
+        a SHA384 digest signed by an ECDSA key.
 
-    Corresponds to the dotted string ``"2.16.840.1.101.3.4.3.1"``. This is
-    a SHA224 digest signed by a DSA key.
+    .. attribute:: ECDSA_WITH_SHA512
 
-.. data:: OID_DSA_WITH_SHA256
+        Corresponds to the dotted string ``"1.2.840.10045.4.3.4"``. This is
+        a SHA512 digest signed by an ECDSA key.
 
-    Corresponds to the dotted string ``"2.16.840.1.101.3.4.3.2"``. This is
-    a SHA256 digest signed by a DSA key.
+    .. attribute:: DSA_WITH_SHA1
 
-.. _eku_oids:
+        Corresponds to the dotted string ``"1.2.840.10040.4.3"``. This is
+        a SHA1 digest signed by a DSA key.
 
-Extended Key Usage OIDs
-~~~~~~~~~~~~~~~~~~~~~~~
+    .. attribute:: DSA_WITH_SHA224
 
-.. data:: OID_SERVER_AUTH
+        Corresponds to the dotted string ``"2.16.840.1.101.3.4.3.1"``. This is
+        a SHA224 digest signed by a DSA key.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.1"``. This is used to
-    denote that a certificate may be used for TLS web server authentication.
+    .. attribute:: DSA_WITH_SHA256
 
-.. data:: OID_CLIENT_AUTH
+        Corresponds to the dotted string ``"2.16.840.1.101.3.4.3.2"``. This is
+        a SHA256 digest signed by a DSA key.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.2"``. This is used to
-    denote that a certificate may be used for TLS web client authentication.
 
-.. data:: OID_CODE_SIGNING
+.. class:: ExtendedKeyUsageOID
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.3"``. This is used to
-    denote that a certificate may be used for code signing.
+    .. versionadded:: 1.0
 
-.. data:: OID_EMAIL_PROTECTION
+    .. attribute:: SERVER_AUTH
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.4"``. This is used to
-    denote that a certificate may be used for email protection.
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.1"``. This is used
+        to denote that a certificate may be used for TLS web server
+        authentication.
 
-.. data:: OID_TIME_STAMPING
+    .. attribute:: CLIENT_AUTH
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.8"``. This is used to
-    denote that a certificate may be used for time stamping.
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.2"``. This is used
+        to denote that a certificate may be used for TLS web client
+        authentication.
 
-.. data:: OID_OCSP_SIGNING
+    .. attribute:: CODE_SIGNING
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.9"``. This is used to
-    denote that a certificate may be used for signing OCSP responses.
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.3"``. This is used
+        to denote that a certificate may be used for code signing.
 
-Authority Information Access OIDs
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    .. attribute:: EMAIL_PROTECTION
 
-.. data:: OID_OCSP
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.4"``. This is used
+        to denote that a certificate may be used for email protection.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.1"``. Used as the
-    identifier for OCSP data in :class:`AccessDescription` objects.
+    .. attribute:: TIME_STAMPING
 
-.. data:: OID_CA_ISSUERS
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.8"``. This is used
+        to denote that a certificate may be used for time stamping.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.2"``. Used as the
-    identifier for CA issuer data in :class:`AccessDescription` objects.
+    .. attribute:: OCSP_SIGNING
 
-Policy Qualifier OIDs
-~~~~~~~~~~~~~~~~~~~~~
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.3.9"``. This is used
+        to denote that a certificate may be used for signing OCSP responses.
 
-.. data:: OID_CPS_QUALIFIER
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.2.1"``.
+.. class:: AuthorityInformationAccessOID
 
-.. data:: OID_CPS_USER_NOTICE
+    .. versionadded:: 1.0
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.2.2"``.
+    .. attribute:: OCSP
 
-.. data:: OID_ANY_POLICY
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.1"``. Used as the
+        identifier for OCSP data in
+        :class:`~cryptography.x509.AccessDescription` objects.
 
-    Corresponds to the dotted string ``"2.5.29.32.0"``.
+    .. attribute:: CA_ISSUERS
 
-.. _extension_oids:
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.2"``. Used as the
+        identifier for CA issuer data in
+        :class:`~cryptography.x509.AccessDescription` objects.
 
-Extension OIDs
-~~~~~~~~~~~~~~
 
-.. data:: OID_BASIC_CONSTRAINTS
+.. class:: CertificatePoliciesOID
 
-    Corresponds to the dotted string ``"2.5.29.19"``. The identifier for the
-    :class:`BasicConstraints` extension type.
+    .. versionadded:: 1.0
 
-.. data:: OID_KEY_USAGE
+    .. attribute:: CPS_QUALIFIER
 
-    Corresponds to the dotted string ``"2.5.29.15"``. The identifier for the
-    :class:`KeyUsage` extension type.
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.2.1"``.
 
-.. data:: OID_SUBJECT_ALTERNATIVE_NAME
+    .. attribute:: CPS_USER_NOTICE
 
-    Corresponds to the dotted string ``"2.5.29.17"``. The identifier for the
-    :class:`SubjectAlternativeName` extension type.
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.2.2"``.
 
-.. data:: OID_ISSUER_ALTERNATIVE_NAME
+    .. attribute:: ANY_POLICY
 
-    Corresponds to the dotted string ``"2.5.29.18"``. The identifier for the
-    :class:`IssuerAlternativeName` extension type.
+        Corresponds to the dotted string ``"2.5.29.32.0"``.
 
-.. data:: OID_SUBJECT_KEY_IDENTIFIER
 
-    Corresponds to the dotted string ``"2.5.29.14"``. The identifier for the
-    :class:`SubjectKeyIdentifier` extension type.
+.. class:: ExtensionOID
 
-.. data:: OID_NAME_CONSTRAINTS
+    .. versionadded:: 1.0
 
-    Corresponds to the dotted string ``"2.5.29.30"``. The identifier for the
-    :class:`NameConstraints` extension type.
+    .. attribute:: BASIC_CONSTRAINTS
 
-.. data:: OID_CRL_DISTRIBUTION_POINTS
+        Corresponds to the dotted string ``"2.5.29.19"``. The identifier for the
+        :class:`~cryptography.x509.BasicConstraints` extension type.
 
-    Corresponds to the dotted string ``"2.5.29.31"``. The identifier for the
-    :class:`CRLDistributionPoints` extension type.
+    .. attribute:: KEY_USAGE
 
-.. data:: OID_CERTIFICATE_POLICIES
+        Corresponds to the dotted string ``"2.5.29.15"``. The identifier for the
+        :class:`~cryptography.x509.KeyUsage` extension type.
 
-    Corresponds to the dotted string ``"2.5.29.32"``. The identifier for the
-    :class:`CertificatePolicies` extension type.
+    .. attribute:: SUBJECT_ALTERNATIVE_NAME
 
-.. data:: OID_AUTHORITY_KEY_IDENTIFIER
+        Corresponds to the dotted string ``"2.5.29.17"``. The identifier for the
+        :class:`~cryptography.x509.SubjectAlternativeName` extension type.
 
-    Corresponds to the dotted string ``"2.5.29.35"``. The identifier for the
-    :class:`AuthorityKeyIdentifier` extension type.
+    .. attribute:: ISSUER_ALTERNATIVE_NAME
 
-.. data:: OID_EXTENDED_KEY_USAGE
+        Corresponds to the dotted string ``"2.5.29.18"``. The identifier for the
+        :class:`~cryptography.x509.IssuerAlternativeName` extension type.
 
-    Corresponds to the dotted string ``"2.5.29.37"``. The identifier for the
-    :class:`ExtendedKeyUsage` extension type.
+    .. attribute:: SUBJECT_KEY_IDENTIFIER
 
-.. data:: OID_AUTHORITY_INFORMATION_ACCESS
+        Corresponds to the dotted string ``"2.5.29.14"``. The identifier for the
+        :class:`~cryptography.x509.SubjectKeyIdentifier` extension type.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.1.1"``. The identifier
-    for the :class:`AuthorityInformationAccess` extension type.
+    .. attribute:: NAME_CONSTRAINTS
 
-.. data:: OID_OCSP_NO_CHECK
+        Corresponds to the dotted string ``"2.5.29.30"``. The identifier for the
+        :class:`~cryptography.x509.NameConstraints` extension type.
 
-    Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.1.5"``. The identifier
-    for the :class:`OCSPNoCheck` extension type.
+    .. attribute:: CRL_DISTRIBUTION_POINTS
+
+        Corresponds to the dotted string ``"2.5.29.31"``. The identifier for the
+        :class:`~cryptography.x509.CRLDistributionPoints` extension type.
+
+    .. attribute:: CERTIFICATE_POLICIES
+
+        Corresponds to the dotted string ``"2.5.29.32"``. The identifier for the
+        :class:`~cryptography.x509.CertificatePolicies` extension type.
+
+    .. attribute:: AUTHORITY_KEY_IDENTIFIER
+
+        Corresponds to the dotted string ``"2.5.29.35"``. The identifier for the
+        :class:`~cryptography.x509.AuthorityKeyIdentifier` extension type.
+
+    .. attribute:: EXTENDED_KEY_USAGE
+
+        Corresponds to the dotted string ``"2.5.29.37"``. The identifier for the
+        :class:`~cryptography.x509.ExtendedKeyUsage` extension type.
+
+    .. attribute:: AUTHORITY_INFORMATION_ACCESS
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.1.1"``. The identifier
+        for the :class:`~cryptography.x509.AuthorityInformationAccess` extension
+        type.
+
+    .. attribute:: INHIBIT_ANY_POLICY
+
+        Corresponds to the dotted string ``"2.5.29.54"``. The identifier
+        for the :class:`~cryptography.x509.InhibitAnyPolicy` extension type.
+
+    .. attribute:: OCSP_NO_CHECK
+
+        Corresponds to the dotted string ``"1.3.6.1.5.5.7.48.1.5"``. The
+        identifier for the :class:`~cryptography.x509.OCSPNoCheck` extension
+        type.
 
 Exceptions
 ~~~~~~~~~~
+.. currentmodule:: cryptography.x509
 
 .. class:: InvalidVersion
 

@@ -1,10 +1,12 @@
 affine
 backend
 backends
+bcrypt
 Backends
 Blowfish
 boolean
 Botan
+Capitan
 Changelog
 ciphertext
 committer
@@ -22,10 +24,13 @@ deserialize
 deserialized
 Diffie
 Docstrings
+Django
 Encodings
 fernet
 Fernet
+FIPS
 hazmat
+hostname
 indistinguishability
 initialisms
 interoperable
@@ -45,6 +50,7 @@ online
 paddings
 pickleable
 plaintext
+pre
 preprocessor
 preprocessors
 pseudorandom

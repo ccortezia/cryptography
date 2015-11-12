@@ -1,3 +1,4 @@
+clint
 coverage
 flake8
 flake8-import-order
@@ -5,6 +6,7 @@ invoke
 iso8601
 pep8-naming
 pretend
+pyasn1_modules
 pytest
 requests
 sphinx
@@ -12,5 +14,6 @@ sphinx_rtd_theme
 sphinxcontrib-spelling
 tox
 twine
+hypothesis
 -e .
 -e vectors

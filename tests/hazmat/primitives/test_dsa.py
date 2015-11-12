@@ -17,7 +17,7 @@ from cryptography.hazmat.backends.interfaces import (
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import dsa
 from cryptography.hazmat.primitives.asymmetric.utils import (
-    encode_rfc6979_signature
+    encode_dss_signature
 )
 from cryptography.utils import bit_length
 
@@ -567,7 +567,7 @@ class TestDSAVerification(object):
             ),
             y=vector['y']
         ).public_key(backend)
-        sig = encode_rfc6979_signature(vector['r'], vector['s'])
+        sig = encode_dss_signature(vector['r'], vector['s'])
         verifier = public_key.verifier(sig, algorithm())
         verifier.update(vector['msg'])
         if vector['result'] == "F":
@@ -582,6 +582,11 @@ class TestDSAVerification(object):
         verifier.update(b'fakesig')
         with pytest.raises(InvalidSignature):
             verifier.verify()
+
+    def test_signature_not_bytes(self, backend):
+        public_key = DSA_KEY_1024.public_numbers.public_key(backend)
+        with pytest.raises(TypeError):
+            public_key.verifier(1234, hashes.SHA1())
 
     def test_use_after_finalize(self, backend):
         public_key = DSA_KEY_1024.public_numbers.public_key(backend)

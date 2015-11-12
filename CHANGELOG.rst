@@ -1,16 +1,72 @@
 Changelog
 =========
 
-1.0 - `master`_
-~~~~~~~~~~~~~~~~
+1.2 - `master`_
+~~~~~~~~~~~~~~~
 
 .. note:: This version is not yet released and is under active development.
+
+* The :class:`~cryptography.x509.Certificate` class now has
+  :attr:`~cryptography.x509.Certificate.signature` and
+  :attr:`~cryptography.x509.Certificate.tbs_certificate_bytes` attributes.
+
+1.1 - 2015-10-28
+~~~~~~~~~~~~~~~~
+
+* Added support for Elliptic Curve Diffie-Hellman with
+  :class:`~cryptography.hazmat.primitives.asymmetric.ec.ECDH`.
+* Added :class:`~cryptography.hazmat.primitives.kdf.x963kdf.X963KDF`.
+* Added support for parsing certificate revocation lists (CRLs) using
+  :func:`~cryptography.x509.load_pem_x509_crl` and
+  :func:`~cryptography.x509.load_der_x509_crl`.
+* Add support for AES key wrapping with
+  :func:`~cryptography.hazmat.primitives.keywrap.aes_key_wrap` and
+  :func:`~cryptography.hazmat.primitives.keywrap.aes_key_unwrap`.
+* Added a ``__hash__`` method to :class:`~cryptography.x509.Name`.
+* Add support for encoding and decoding elliptic curve points to a byte string
+  form using
+  :meth:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicNumbers.encode_point`
+  and
+  :meth:`~cryptography.hazmat.primitives.asymmetric.ec.EllipticCurvePublicNumbers.from_encoded_point`.
+* Added :meth:`~cryptography.x509.Extensions.get_extension_for_class`.
+* :class:`~cryptography.x509.CertificatePolicies` are now supported in the
+  :class:`~cryptography.x509.CertificateBuilder`.
+* ``countryName`` is now encoded as a ``PrintableString`` when creating subject
+  and issuer distinguished names with the Certificate and CSR builder classes.
+
+1.0.2 - 2015-09-27
+~~~~~~~~~~~~~~~~~~
+* **SECURITY ISSUE**: The OpenSSL backend prior to 1.0.2 made extensive use
+  of assertions to check response codes where our tests could not trigger a
+  failure.  However, when Python is run with ``-O`` these asserts are optimized
+  away.  If a user ran Python with this flag and got an invalid response code
+  this could result in undefined behavior or worse. Accordingly, all response
+  checks from the OpenSSL backend have been converted from ``assert``
+  to a true function call. Credit **Emilia Käsper (Google Security Team)**
+  for the report.
+
+1.0.1 - 2015-09-05
+~~~~~~~~~~~~~~~~~~
+
+* We now ship OS X wheels that statically link OpenSSL by default. When
+  installing a wheel on OS X 10.10+ (and using a Python compiled against the
+  10.10 SDK) users will no longer need to compile. See :doc:`/installation` for
+  alternate installation methods if required.
+* Set the default string mask to UTF-8 in the OpenSSL backend to resolve
+  character encoding issues with older versions of OpenSSL.
+* Several new OpenSSL bindings have been added to support a future pyOpenSSL
+  release.
+* Raise an error during install on PyPy < 2.6. 1.0+ requires PyPy 2.6+.
+
+1.0 - 2015-08-12
+~~~~~~~~~~~~~~~~
 
 * Switched to the new `cffi`_ ``set_source`` out-of-line API mode for
   compilation. This results in significantly faster imports and lowered
   memory consumption. Due to this change we no longer support PyPy releases
   older than 2.6 nor do we support any released version of PyPy3 (until a
   version supporting cffi 1.0 comes out).
+* Fix parsing of OpenSSH public keys that have spaces in comments.
 * Support serialization of certificate signing requests using the
   ``public_bytes`` method of
   :class:`~cryptography.x509.CertificateSigningRequest`.
@@ -36,21 +92,31 @@ Changelog
 
 * Extension support was added to
   :class:`~cryptography.x509.CertificateSigningRequest`.
-* Add support for creating certificate signing requests with
-  :class:`~cryptography.x509.CertificateSigningRequestBuilder`. This includes
-  support for the following extensions:
-
-  * :class:`~cryptography.x509.BasicConstraints`
-  * :class:`~cryptography.x509.ExtendedKeyUsage`
-  * :class:`~cryptography.x509.KeyUsage`
-  * :class:`~cryptography.x509.SubjectAlternativeName`
-
 * Add support for creating signed certificates with
   :class:`~cryptography.x509.CertificateBuilder`. This includes support for
-  the following extensions
+  the following extensions:
 
   * :class:`~cryptography.x509.BasicConstraints`
   * :class:`~cryptography.x509.SubjectAlternativeName`
+  * :class:`~cryptography.x509.KeyUsage`
+  * :class:`~cryptography.x509.ExtendedKeyUsage`
+  * :class:`~cryptography.x509.SubjectKeyIdentifier`
+  * :class:`~cryptography.x509.AuthorityKeyIdentifier`
+  * :class:`~cryptography.x509.AuthorityInformationAccess`
+  * :class:`~cryptography.x509.CRLDistributionPoints`
+  * :class:`~cryptography.x509.InhibitAnyPolicy`
+  * :class:`~cryptography.x509.IssuerAlternativeName`
+  * :class:`~cryptography.x509.OCSPNoCheck`
+
+* Add support for creating certificate signing requests with
+  :class:`~cryptography.x509.CertificateSigningRequestBuilder`. This includes
+  support for the same extensions supported in the ``CertificateBuilder``.
+* Deprecate ``encode_rfc6979_signature`` and ``decode_rfc6979_signature`` in
+  favor of
+  :func:`~cryptography.hazmat.primitives.asymmetric.utils.encode_dss_signature`
+  and
+  :func:`~cryptography.hazmat.primitives.asymmetric.utils.decode_dss_signature`.
+
 
 0.9.3 - 2015-07-09
 ~~~~~~~~~~~~~~~~~~

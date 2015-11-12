@@ -212,7 +212,13 @@ class EllipticCurveBackend(object):
     @abc.abstractmethod
     def load_elliptic_curve_private_numbers(self, numbers):
         """
-        Return an EllipticCurvePublicKey provider using the given numbers.
+        Return an EllipticCurvePrivateKey provider using the given numbers.
+        """
+
+    @abc.abstractmethod
+    def elliptic_curve_exchange_algorithm_supported(self, algorithm, curve):
+        """
+        Returns whether the exchange algorithm is supported by this backend.
         """
 
 
@@ -281,9 +287,9 @@ class X509Backend(object):
         """
 
     @abc.abstractmethod
-    def sign_x509_certificate(self, builder, private_key, algorithm):
+    def create_x509_certificate(self, builder, private_key, algorithm):
         """
-        Sign an X.509 Certificate from a CertificateBuilder object.
+        Create and sign an X.509 certificate from a CertificateBuilder object.
         """
 
 

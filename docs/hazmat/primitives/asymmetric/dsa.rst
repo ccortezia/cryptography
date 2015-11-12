@@ -80,14 +80,20 @@ provider.
     >>> signature = signer.finalize()
 
 The ``signature`` is a ``bytes`` object, whose contents is DER encoded as
-described in :rfc:`6979`. This can be decoded using
-:func:`~cryptography.hazmat.primitives.asymmetric.utils.decode_rfc6979_signature`.
+described in :rfc:`3279`. This can be decoded using
+:func:`~cryptography.hazmat.primitives.asymmetric.utils.decode_dss_signature`.
 
 Verification
 ~~~~~~~~~~~~
 
-Using a :class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey`
-provider.
+Verification is performed using a
+:class:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicKey` provider.
+You can get a public key object with
+:func:`~cryptography.hazmat.primitives.serialization.load_pem_public_key`,
+:func:`~cryptography.hazmat.primitives.serialization.load_der_public_key`,
+:meth:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPublicNumbers.public_key`
+, or
+:meth:`~cryptography.hazmat.primitives.asymmetric.dsa.DSAPrivateKey.public_key`.
 
 .. doctest::
 
@@ -264,7 +270,7 @@ Key interfaces
 
         Sign data which can be verified later by others using the public key.
         The signature is formatted as DER-encoded bytes, as specified in
-        :rfc:`6979`.
+        :rfc:`3279`.
 
         :param algorithm: An instance of a
             :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm`
@@ -354,7 +360,7 @@ Key interfaces
         key.
 
         :param bytes signature: The signature to verify. DER encoded as
-            specified in :rfc:`6979`.
+            specified in :rfc:`3279`.
 
         :param algorithm: An instance of a
             :class:`~cryptography.hazmat.primitives.hashes.HashAlgorithm`

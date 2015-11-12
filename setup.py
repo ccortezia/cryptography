@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 # This file is dual licensed under the terms of the Apache License, Version
 # 2.0, and the BSD License. See the LICENSE file in the root of this repository
 # for complete details.
@@ -45,7 +47,13 @@ if sys.version_info < (3, 4):
 if sys.version_info < (3, 3):
     requirements.append("ipaddress")
 
-if platform.python_implementation() != "PyPy":
+if platform.python_implementation() == "PyPy":
+    if sys.pypy_version_info < (2, 6):
+        raise RuntimeError(
+            "cryptography 1.0 is not compatible with PyPy < 2.6. Please "
+            "upgrade PyPy to use this library."
+        )
+else:
     requirements.append("cffi>=1.1.0")
     setup_requirements.append("cffi>=1.1.0")
 
@@ -54,6 +62,8 @@ test_requirements = [
     "pytest",
     "pretend",
     "iso8601",
+    "hypothesis",
+    "pyasn1_modules",
 ]
 
 # If there's no vectors locally that probably means we are in a tarball and
@@ -284,6 +294,7 @@ setup(
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.3",
         "Programming Language :: Python :: 3.4",
+        "Programming Language :: Python :: 3.5",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
         "Topic :: Security :: Cryptography",

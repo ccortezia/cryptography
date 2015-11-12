@@ -9,24 +9,7 @@ INCLUDES = """
 """
 
 TYPES = """
-/*
- * TODO: This typedef is wrong.
- *
- * This is due to limitations of cffi.
- * See https://bitbucket.org/cffi/cffi/issue/69
- *
- * For another possible work-around (not used here because it involves more
- * complicated use of the cffi API which falls outside the general pattern used
- * by this package), see
- * http://paste.pound-python.org/show/iJcTUMkKeBeS6yXpZWUU/
- *
- * The work-around used here is to just be sure to declare a type that is at
- * least as large as the real type.  Maciej explains:
- *
- * <fijal> I think you want to declare your value too large (e.g. long)
- * <fijal> that way you'll never pass garbage
- */
-typedef intptr_t time_t;
+typedef int... time_t;
 
 typedef int ASN1_BOOLEAN;
 typedef ... ASN1_INTEGER;
@@ -40,9 +23,10 @@ struct asn1_string_st {
 
 typedef struct asn1_string_st ASN1_OCTET_STRING;
 typedef struct asn1_string_st ASN1_IA5STRING;
-typedef ... ASN1_BIT_STRING;
+typedef struct asn1_string_st ASN1_BIT_STRING;
 typedef ... ASN1_OBJECT;
 typedef struct asn1_string_st ASN1_STRING;
+typedef struct asn1_string_st ASN1_UTF8STRING;
 typedef ... ASN1_TYPE;
 typedef ... ASN1_GENERALIZEDTIME;
 typedef ... ASN1_ENUMERATED;
@@ -125,9 +109,14 @@ int ASN1_BIT_STRING_set_bit(ASN1_BIT_STRING *, int, int);
 """
 
 MACROS = """
+ASN1_UTF8STRING *ASN1_UTF8STRING_new(void);
+void ASN1_UTF8STRING_free(ASN1_UTF8STRING *);
+
 ASN1_BIT_STRING *ASN1_BIT_STRING_new(void);
 void ASN1_BIT_STRING_free(ASN1_BIT_STRING *);
 int i2d_ASN1_BIT_STRING(ASN1_BIT_STRING *, unsigned char **);
+int i2d_ASN1_OCTET_STRING(ASN1_OCTET_STRING *, unsigned char **);
+int i2d_ASN1_INTEGER(ASN1_INTEGER *, unsigned char **);
 /* This is not a macro, but is const on some versions of OpenSSL */
 int ASN1_BIT_STRING_get_bit(ASN1_BIT_STRING *, int);
 ASN1_TIME *M_ASN1_TIME_dup(void *);
